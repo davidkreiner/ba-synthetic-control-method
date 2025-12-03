@@ -2,7 +2,7 @@
 # 1. Define relevant Parameters:
 # --------------------------------------------------------------
 
-country <- "ITC" # Treated country
+country <- "IT" # Treated country
 CONTROL_NUTS_CODE <- c("DE", "NL", "FI", "DK", "SE", "IE", "LU")
 num_cores <- detectCores()-1
 number_permutations <- 1500
@@ -39,6 +39,7 @@ source(here::here("Scripts","Placebo.R"))
 rmarkdown::render(input = here::here("BA_Github.rmd"),output_format="pdf_document",
                   params = list(Output_folder = Output_folder),
                   envir = globalenv())
+
 
 
 
