@@ -30,3 +30,6 @@ The estimation uses data from Eurostat on NUTS2 level. The Synthetic control met
   - `number_permutations` ... this parameter sets the number of permutations that are done in the placebo-inference procedure. A too high number of permutations may lead to long computing times. The standard value is 1500 as used in my bachelors thesis, but for simple replication of the results a lower number is recommended.
 
   - `predictors` ... this is a vector of the predictors that are used in the SCM procedure. The standard value is using allthe predictors from my bachelors thesis (i.e. "LN_POP","DENS","CAPITAL","EDUC")
+
+## Replication
+To replicate the results open RStudio and make sure that `data`,`scripts` and `BA_Github.Rmd` are availlable. Set the relevant parameters and run `RunSCM.R`
