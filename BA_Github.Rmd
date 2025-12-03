@@ -1,0 +1,381 @@
+---
+title: "BA_Github file"
+author: "David Kreiner 12221999"
+date: "2025-10-24"
+output: pdf_document
+header-includes:
+  - \usepackage{placeins}
+  - \usepackage{booktabs}
+  - \usepackage[table]{xcolor}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Daten
+
+```{=latex}
+\begin{table}[h] 
+\centering 
+\begin{tabular}{l|c|r} 
+\hline\hline
+\textbf{Variable} & \textbf{Quelle} & \textbf{Zeitraum} \\
+\hline\hline
+BIP/Kopf & ARDECO & 2015-2027 \\
+\hline
+GFCF (Gross fixed capital formation) & Eurostat & 2015-2021 \\
+Einwohnerzahl & Eurostat & 2015-2021 \\ 
+BEvölkerungsdichte & Eurostat & 2015-2021 \\ 
+Anteil Personen mit Tertiärbildung & Eurostat & 2015-2021 \\ 
+\hline 
+\end{tabular} 
+\caption{\textbf{Variablenauswahl.} \small \textit{*Alle Werte ab 2024 basieren auf Schätzungen und Prognosen von AMECO}}
+\label{tab:example}
+\end{table}
+```
+
+
+# Prädiktoren
+## ohne GDP
+\FloatBarrier
+
+```{r,results = 'asis',warning=FALSE, echo=FALSE}
+all_predictors <- read.csv(here::here(Output_folder,"all_predictors.csv"))%>%
+  mutate(across(where(is.numeric), ~ round(.x, 2))) %>%
+  select(-"Sample.Mean",-Region)%>%
+  pivot_wider(names_from = metric, values_from = c("Treated", "Synthetic"), names_glue = "{metric}_{.value}") %>%
+  select(NUTS,order(names(.)))
+
+
+# Tabelle mit zweizeiligem Header
+table <- kable(all_predictors, format = "latex", booktabs = TRUE,
+      col.names = c("Region",
+                    rep(c("Treated", "Synthetic"), 4))) %>%
+  add_header_above(c(" " = 1,
+                     "Ln(Population)" = 2,
+                     "Bevölkerungsdichte" = 2,
+                     "GFCF" = 2,
+                     "Education" = 2)) %>%
+  kable_styling(latex_options = "scale_down")
+
+table
+```
+
+
+\FloatBarrier
+
+# Donors
+\FloatBarrier
+
+```{r paged.print=TRUE, results='asis',warning=FALSE, echo=FALSE}
+all_donors <- read.csv(here::here(Output_folder,"all_donors.csv"))
+
+colnames(all_donors) <- c("Region", "Donors")  # echte Namen
+colnames(all_donors)[3:ncol(all_donors)] <- rep("", ncol(all_donors) - 2) 
+all_donors[is.na(all_donors)] <- ""
+
+table <- kable(all_donors, 
+               format = "latex", 
+               booktabs = TRUE,
+               align = c("l", "|l", rep("l", ncol(all_donors) - 2))) %>%  
+    kable_styling(latex_options = "scale_down")
+  
+
+
+
+table
+
+```
+\FloatBarrier
+
+# Ergebnisse
+
+\FloatBarrier
+
+```{r,results = 'asis',warning=FALSE, echo=FALSE}
+result <- read.csv(here::here(Output_folder,"result.csv"))
+code_map <- read.csv(here::here(Output_folder,"code_map.csv")) %>% select("NUTS2","NAME_HTML")
+result <- result %>% 
+  left_join(code_map, by = c("NUTS" = "NAME_HTML")) %>%
+  rename(Region = NUTS, NUTS = NUTS2) %>% 
+  arrange(NUTS) %>%
+  mutate(post_treatment = round(post_treatment,2),
+         pre_treatment = round(pre_treatment,2)) %>%
+  select("NUTS","Region","pre_treatment","post_treatment")
+
+table <- kable(x = result,format = "latex",booktabs = TRUE)%>%
+  row_spec(nrow(result) - 1, hline_after = TRUE)  %>%
+ kable_styling(latex_options = c("scale_down"))
+
+table
+
+```
+\FloatBarrier
+
+
+# Ergebnisse nach Jahren
+
+\FloatBarrier
+
+```{r,results = 'asis',warning=FALSE, echo=FALSE}
+results_unaggregated <- read.csv(here::here(Output_folder,"results_unaggregated.csv"))   %>%
+  group_by(year) %>%  
+  summarise(Difference = round(mean(Difference),2))
+
+results_unaggregated[results_unaggregated$year == 2021,"Difference"] <- 0
+
+# Tabelle schöner formatieren
+yearly_table <- kable(results_unaggregated, format = "latex", booktabs = TRUE) %>%  
+  row_spec(nrow(results_unaggregated) - 5, background = "lightgray")%>% 
+kable_styling(latex_options = "scale_down")
+
+
+
+yearly_table
+
+
+```
+
+\FloatBarrier
+
+# Ergebnisse nach Jahren Graph
+
+\FloatBarrier
+
+```{r,results = 'asis',warning=FALSE, echo=FALSE}
+results_unaggregated <- read.csv(here::here(Output_folder,"results_unaggregated.csv")) %>%  
+  group_by(year) %>%  
+  summarise(Difference = round(mean(Difference),2),
+            treatment_GDP = mean(treatment_GDP),
+            control_GDP = mean(control_GDP))
+
+results_unaggregated[results_unaggregated$year == 2021,"Difference"] <- 0
+
+Plot <- ggplot(results_unaggregated, aes(x = year)) +
+  geom_line(aes(y = control_GDP, color = "control"), linewidth = 1) +
+  geom_line(aes(y = treatment_GDP, color = "treatment"), linewidth = 1) +
+  geom_point(aes(y = control_GDP, color = "control"), size = 2) +
+  geom_point(aes(y = treatment_GDP, color = "treatment"), size = 2) +
+   scale_color_manual(
+    values = c("control" = "darkblue",   # Blau
+               "treatment" = "darkorange") # Rot
+  ) +
+  labs(y = "GDP", color = "Group") +
+  scale_x_continuous(breaks = seq(min(results_unaggregated$year), max(results_unaggregated$year), by = 1)) +
+  theme_light()
+
+Plot
+
+ggsave(here::here(Output_folder,"PLOT_All.pdf"),Plot)
+
+```
+
+
+
+\FloatBarrier
+
+# Ergebnisse nach Jahren einzeln plot
+
+\FloatBarrier
+
+```{r, results='asis',warning=FALSE, echo=FALSE}
+# Regionennamen bereinigen
+orig_results_unaggregated <- read.csv(here::here(Output_folder,"results_unaggregated.csv")) %>%
+  mutate(Region = ifelse(Region == "Valle d'Aosta/Vallée d'Aoste", "Valle d'Aosta",
+                  ifelse(Region == "Provincia Autonoma di Bolzano/Bozen", "Bolzano/Bozen", Region)))
+
+# PDF-Plots für jede Region generieren
+for (actual in unique(orig_results_unaggregated$Region)) {
+  results_unaggregated <- orig_results_unaggregated %>% filter(Region == actual)
+  results_unaggregated[results_unaggregated$year == 2021, "Difference"] <- 0
+
+  plot <- ggplot(results_unaggregated, aes(x = year)) +
+    geom_line(aes(y = control_GDP, color = "control"), linewidth = 1) +
+    geom_line(aes(y = treatment_GDP, color = "treatment"), linewidth = 1) +
+    geom_point(aes(y = control_GDP, color = "control"), size = 2) +
+    geom_point(aes(y = treatment_GDP, color = "treatment"), size = 2) +
+    scale_color_manual(values = c("control" = "darkblue", "treatment" = "darkorange")) +
+    geom_vline(xintercept = 2021) +
+    labs(y = "GDP", color = "Group", title = actual) +
+    theme_void() +
+    theme(
+      panel.background = element_rect(fill = "white", color = NA),
+      axis.line = element_line(color = "black"),
+      axis.ticks = element_line(color = "black"),
+      axis.text.y = element_text(color = "black"),
+      plot.title = element_text(hjust = 0.5),
+      legend.position = "none"
+    )
+
+  name <- substr(actual, 1, 5)
+  ggsave(filename = paste0(here::here(Output_folder,"plots/results//"), name, ".pdf"), plot = plot, width = 2.5, height = 2)
+}
+
+# Lade alle Plots
+plots <- list.files(here::here(Output_folder,"plots/results//"), pattern = "\\.pdf$", full.names = TRUE)
+plots <- sort(plots)
+n_cols <- 4
+n_plots <- length(plots)
+n_full_rows <- floor(n_plots / n_cols)
+remaining <- n_plots %% n_cols
+
+# Tabellenbeginn
+cat("\\begin{center}\n\\begin{tabular}{", paste(rep("c", n_cols), collapse = " "), "}\n", sep = "")
+
+for (i in 1:(n_full_rows * n_cols)) {
+  cat(sprintf("\\includegraphics[width=%.3f\\linewidth]{%s}", 0.95 / n_cols, plots[i]))
+  if (i %% n_cols == 0) {
+    cat(" \\\\\n")
+  } else {
+    cat(" & ")
+  }
+}
+
+# Letzte Zeile: verbleibende Plots + Legende + leere Zellen danach
+if (remaining > 0) {
+  for (i in (n_full_rows * n_cols + 1):n_plots) {
+    cat(sprintf("\\includegraphics[width=%.3f\\linewidth]{%s}", 0.95 / n_cols, plots[i]))
+    cat(" & ")
+  }
+
+
+  # Gesamtanzahl bereits verwendeter Spalten in dieser Zeile:
+  used_cols <- remaining + 1 + 2  # restliche Plots + leere Zelle + Legende (über 2 Spalten)
+
+  # Noch verbleibende leere Spalten (falls < n_cols)
+  empty_slots <- n_cols - used_cols
+  if (empty_slots > 0) {
+    cat(paste(rep(" & ", empty_slots), collapse = ""))
+  }
+
+  # Zeilenumbruch
+  cat(" \\\\\n")
+}
+
+# Tabellenende
+cat("\\end{tabular}\n\\end{center}\n")
+
+
+```
+
+\FloatBarrier
+
+
+# Placebo
+
+\FloatBarrier
+
+```{r,warning=FALSE, echo=FALSE, fig.cap= cap_text}
+
+Placebo_out <- read.csv(here::here(Output_folder,"Placebo_general.csv"))
+unscaled_estimate <- read.csv(here::here(Output_folder,"unscaled_estimate.csv"))%>%
+  pull(unscaled_estimate)
+
+ggplot(Placebo_out) +
+  geom_density(mapping = aes(x = post_treatment), fill = "lightgray", alpha = 0.5) +
+  geom_vline(xintercept = unscaled_estimate, color = "black", linetype = "dashed") +
+  annotate("text", 
+           x = 0.0323, y = 15, 
+           label = "Geschätzter Effekt", 
+           vjust = 1.5, 
+           angle = 90, 
+           color = "black", 
+           size = 4)+
+  labs(x = "Placebo Effekte", y = "Dichte") +
+  scale_x_continuous(limits = c(-0.05, 0.05)) +
+  theme_light()
+  
+
+p_wert <- mean(abs(Placebo_out$post_treatment) >= abs(unscaled_estimate))
+
+
+cap_text <- paste0("Placebo results, p-Wert = ", round(p_wert, 3),",  ", "K = ",length(Placebo_out$Permutation))
+
+```
+
+\FloatBarrier
+
+Der geschätzte p-Wert beträgt `r sprintf("$p = %.1f\\%%$", 100 * p_wert)`.
+
+# P-wert nach Jahren
+
+\FloatBarrier
+
+```{r,results='asis',warning=FALSE, echo=FALSE}
+
+
+years <- 2022:2026
+
+for (current in years) {
+  Placebo_out <- read.csv(here::here(Output_folder,"Placebo_yearly.csv")) %>%
+    filter(year==current)
+  
+  unscaled_estimate <- read.csv(here::here(Output_folder,"unscaled_estimate_yearly.csv"))%>%
+    filter(year==current)%>%
+    pull(unscaled_estimate)
+
+  p_wert <- mean(abs(Placebo_out$Difference) >= abs(unscaled_estimate))
+
+  plot <- ggplot(Placebo_out) +
+    geom_density(mapping = aes(x = Difference), fill = "lightgray", alpha = 0.5) +
+    geom_vline(xintercept = unscaled_estimate, color = "black", linetype = "dashed") +
+    annotate("text",
+             x = unscaled_estimate, y = 15,
+             label = paste0("p = ", round(p_wert, 3)),
+             vjust = 1.5, angle = 90,
+             color = "black", size = 4) +
+    labs(x = "Placebo Effekte", y = "Dichte", title = current) +
+    scale_x_continuous(limits = c(-0.05, 0.05)) +
+    theme_light()
+
+  ggsave(paste0(here::here(Output_folder,"plots/placebo//"), current, ".pdf"), plot, width = 3, height = 3)
+}
+
+
+plots <- paste0(here::here(Output_folder,"plots/placebo//"), 2022:2026, ".pdf")
+n_cols <- 3
+n_plots <- length(plots)
+n_full_rows <- floor(n_plots / n_cols)
+remaining <- n_plots %% n_cols
+
+cat("\\begin{center}\n\\begin{tabular}{", paste(rep("c", n_cols), collapse = " "), "}\n", sep = "")
+
+# Volle Zeilen
+for (i in 1:(n_full_rows * n_cols)) {
+  cat(sprintf("\\includegraphics[width=%.3f\\linewidth]{%s}", 0.95 / n_cols, plots[i]))
+  if (i %% n_cols == 0) {
+    cat(" \\\\\n")
+  } else {
+    cat(" & ")
+  }
+}
+
+# Letzte Zeile mit Restplots
+if (remaining > 0) {
+  for (i in (n_full_rows * n_cols + 1):n_plots) {
+    cat(sprintf("\\includegraphics[width=%.3f\\linewidth]{%s}", 0.95 / n_cols, plots[i]))
+    if (i < n_plots) {
+      cat(" & ")
+    }
+  }
+
+  # Leere Zellen ergänzen
+  empty_slots <- n_cols - remaining
+  if (empty_slots > 0) {
+    cat(paste(rep(" & ", empty_slots), collapse = ""))
+  }
+  cat(" \\\\\n")
+}
+
+cat("\\end{tabular}\n\\end{center}\n")
+
+
+```
+
+\FloatBarrier
+
+
